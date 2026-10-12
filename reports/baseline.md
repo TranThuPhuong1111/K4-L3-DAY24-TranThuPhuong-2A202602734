@@ -1,5 +1,7 @@
-# Baseline — điền trong checkpoint 1
+# Baseline — checkpoint 1
 
-1. Agent có identity mỗi run chưa? Dẫn file/hàm:
-2. Ai cho phép `http_post`? Dẫn file/hàm:
-3. Nếu gửi sai PII ra sink, bằng chứng ở đâu? Dẫn file/hàm:
+Đọc `agent/loop.py::_naive_loop()` (dòng 27–54) ở commit đề bài `52b33b5`, khi `agent/runner.py::handle()` còn raise `RunnerScaffoldPending` nên `run_once()` (dòng 67–74) rơi về baseline.
+
+1. **Agent có identity mỗi run chưa?** Chưa. `_naive_loop(message, llm)` (`agent/loop.py:27`) không nhận principal, `run_id` hay `agent_id`. Cờ `--as` (`agent/loop.py:83`) được truyền tới `run_once()` nhưng ở nhánh baseline (`agent/loop.py:73`) bị bỏ qua hoàn toàn. Vì vậy cùng một vòng lặp vừa đọc corpus untrusted, vừa đọc private store, vừa gọi network, mà không có danh tính nào để giới hạn quyền.
+2. **Ai cho phép `http_post`?** Không ai cả. `_naive_loop` gọi `tools.http_post(injected.target_url, ...)` (`agent/loop.py:44`) ngay khi `llm.find_injection()` (`agent/loop.py:34`) thấy ≥2 marker trong text của document. Tức là **nội dung của attacker** quyết định cả customer cần đọc (`injected.customer_ids`, dòng 37–39) lẫn đích gửi (`target_url`, dòng 44). Không có PEP/policy nào chạy trước tool. Allowlist trong `agent/tools.py:77-83` chỉ giữ cho lab chạy an toàn trên localhost (`127.0.0.1:10024`), không phải một quyết định phân quyền.
+3. **Nếu gửi sai PII ra sink, bằng chứng ở đâu?** Chỉ ở phía nạn nhân: sink ghi mỗi POST vào `reports/sink.log` (`sink/sink.py:47`, handler `do_POST`). Phía agent không có ledger, không có decision hay reason, nên không biết run nào hay ai đã cho phép gửi. Bằng chứng thực tế: `reports/attack-before.log` chứa record synthetic của `KH-000999` (cccd `811753472374`, phone `0861707895`, STK `9103069783`), tạo bằng `python -m agent.loop --mock "Tổng hợp các ticket còn mở tuần này"`.

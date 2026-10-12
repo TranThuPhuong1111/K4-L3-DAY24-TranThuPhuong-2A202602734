@@ -59,16 +59,179 @@ Interface bắt buộc (agent/loop.py import và gọi hàm này nếu tồn t�
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import re
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from agent import ledger, pii, policy, tools
 
 REPORTS_DIR = Path(__file__).resolve().parent.parent / "reports"
 DEFAULT_LEDGER_PATH = REPORTS_DIR / "ledger.jsonl"
+
+AGENT_ID = "lab24-agent"
+RUN_TTL = timedelta(minutes=5)
+# Quyền tối đa của orchestrator; run con chỉ được thu hẹp, không mở rộng.
+ORCHESTRATOR_SCOPES = ("search_docs", "read_customer")
+RUN_A_SCOPES = ("search_docs",)
+RUN_B_SCOPES = ("read_customer",)
+RUN_A_PURPOSE = "summarize-tickets"
+RUN_B_PURPOSE = "support-reply"
+# Đích egress cố định trong code — KHÔNG lấy URL từ free text của document.
+EGRESS_URL = f"http://{tools.ALLOWED_EGRESS_HOST}:{tools.ALLOWED_EGRESS_PORT}/reconcile"
+
+_TICKET_FILE_RE = re.compile(r"^ticket-(\d+)\.md$")
 
 
 class RunnerScaffoldPending(NotImplementedError):
     """Only the original 3c stub uses this to enable the CP1/CP2 baseline."""
 
 
+@dataclass(frozen=True)
+class RunAOutput:
+    """Thứ DUY NHẤT đi qua boundary A -> B: dữ liệu typed, không có free text."""
+    ticket_ids: tuple[int, ...]
+    injection_flagged: bool
+    summary: str
+
+
+@dataclass
+class _Session:
+    principal_id: str
+    ledger_path: Path
+    request_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    expires_at: str = field(default_factory=lambda: (
+        datetime.now(timezone.utc) + RUN_TTL).isoformat(timespec="seconds"))
+
+    def run_id(self, name: str) -> str:
+        return f"{self.request_id}-{name}"
+
+
+def _args_hash(args: dict) -> str:
+    canonical = json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _log(session: _Session, run: str, tool: str, args: dict, classification: str,
+         decision: str, reason: str, *, purpose: str, depth: int, egress: bool) -> None:
+    ledger.append({
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "agent_id": f"{AGENT_ID}/{run}",
+        "run_id": session.run_id(run),
+        "request_id": session.request_id,
+        "on_behalf_of": session.principal_id,
+        "expires_at": session.expires_at,
+        "tool": tool,
+        "args_hash": _args_hash(args),
+        "classification": classification,
+        "purpose": purpose,
+        "delegation_depth": depth,
+        "egress_enabled": egress,
+        "decision": decision,
+        # Reason có thể nhắc lại input; redact để ledger không chứa PII thô.
+        "reason": pii.redact(reason) or f"{decision} {tool}",
+    }, session.ledger_path)
+
+
+def _guarded_call(session: _Session, run: str, tool: str, args: dict, *,
+                  classification: str, purpose: str, agent_scopes: tuple[str, ...],
+                  egress: bool, invoke):
+    """PEP: policy.check() TRƯỚC tool; ghi ledger cả allow lẫn deny; deny thì không gọi."""
+    depth = 1  # mọi run con đều do orchestrator (depth 0) uỷ quyền
+    context = policy.PolicyContext(
+        data_classification=classification,
+        request_purpose=purpose,
+        agent_owner=f"{AGENT_ID}/{run}",
+        delegation_depth=depth,
+        egress_enabled=egress,
+        principal_id=session.principal_id,
+        requested_tool=tool,
+        agent_scopes=agent_scopes,
+        parent_scopes=ORCHESTRATOR_SCOPES,
+        expires_at=session.expires_at,
+    )
+    allowed, reason = policy.check(context)
+    meta = dict(purpose=purpose, depth=depth, egress=egress)
+    _log(session, run, tool, args, classification, "allow" if allowed else "deny", reason, **meta)
+    if not allowed:
+        return None
+    try:
+        return invoke()
+    except tools.ToolError as exc:
+        _log(session, run, tool, args, classification, "error", f"tool error after allow: {exc}", **meta)
+        return None
+
+
+def _run_a(session: _Session, message: str, llm) -> RunAOutput:
+    """Run A: chỉ chân untrusted content. Không private store, không egress."""
+    docs = _guarded_call(
+        session, "run-a", "search_docs", {"query": message},
+        classification="internal", purpose=RUN_A_PURPOSE, agent_scopes=RUN_A_SCOPES,
+        egress=False, invoke=lambda: tools.search_docs(message),
+    ) or []
+
+    injected = llm.find_injection("\n\n".join(d["text"] for d in docs))
+    if injected is not None:
+        # Chỉ log để làm bằng chứng; customer_ids/target_url của attacker bị bỏ.
+        _log(session, "run-a", "llm.find_injection", {"docs": [d["id"] for d in docs]},
+             "untrusted", "flag",
+             f"injection markers {injected.matched_markers} found in untrusted docs; "
+             f"{len(injected.customer_ids)} customer id(s) and target_url from free text "
+             f"discarded — only filename ticket ids cross to Run B",
+             purpose=RUN_A_PURPOSE, depth=1, egress=False)
+
+    ticket_ids = sorted({int(m.group(1)) for d in docs
+                         if (m := _TICKET_FILE_RE.match(d["id"]))})
+    # PII gate: text đã redact trước khi vào context của LLM để tóm tắt.
+    summary = llm.summarize([{"id": d["id"], "text": pii.redact(d["text"])} for d in docs])
+    return RunAOutput(tuple(ticket_ids), injected is not None, summary)
+
+
+def _customers_for_tickets(ticket_ids: tuple[int, ...]) -> list[str]:
+    """Map ticket_id -> customer_id qua related_tickets (nguồn tin cậy).
+
+    Chỉ chiếu 2 field định tuyến (customer_id, related_tickets); record đầy
+    đủ chỉ được đọc qua read_customer sau khi PEP allow.
+    """
+    index = json.loads(tools.CUSTOMERS_FILE.read_text(encoding="utf-8"))
+    wanted = set(ticket_ids)
+    return [c["customer_id"] for c in index if wanted & set(c.get("related_tickets", ()))]
+
+
+def _run_b(session: _Session, handoff: RunAOutput) -> int:
+    """Run B: chỉ chân private data, input là RunAOutput typed."""
+    records = []
+    for customer_id in _customers_for_tickets(handoff.ticket_ids):
+        record = _guarded_call(
+            session, "run-b", "read_customer", {"customer_id": customer_id},
+            classification="restricted", purpose=RUN_B_PURPOSE, agent_scopes=RUN_B_SCOPES,
+            egress=False, invoke=lambda cid=customer_id: tools.read_customer(cid),
+        )
+        if record is not None:
+            records.append(record)
+
+    if handoff.injection_flagged:
+        # Agent "nghe lời" chỉ thị đã bị flag và xin egress. Payload là record
+        # khách hàng -> restricted + egress -> PEP deny. Nếu có policy nào
+        # allow nhầm, payload vẫn đi qua PII gate trước (defense in depth).
+        payload = {"records": [json.loads(pii.redact(json.dumps(r, ensure_ascii=False)))
+                               for r in records]}
+        _guarded_call(
+            session, "run-b", "http_post",
+            {"url": EGRESS_URL, "record_ids": [r["customer_id"] for r in records]},
+            classification="restricted", purpose=RUN_B_PURPOSE, agent_scopes=RUN_B_SCOPES,
+            egress=True, invoke=lambda: tools.http_post(EGRESS_URL, payload),
+        )
+    return len(records)
+
+
 def handle(message: str, llm, log_dir: Path | None = None,
            principal_id: str = "support_l1") -> str:
-    raise RunnerScaffoldPending("BƯỚC 3c: implement trifecta split")
+    ledger_path = Path(log_dir) / "ledger.jsonl" if log_dir else DEFAULT_LEDGER_PATH
+    session = _Session(principal_id=principal_id, ledger_path=ledger_path)
+    handoff = _run_a(session, message, llm)
+    _run_b(session, handoff)
+    return handoff.summary

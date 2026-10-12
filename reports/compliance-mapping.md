@@ -1,10 +1,67 @@
-# Compliance mapping — điền trong checkpoint 5
+# Compliance mapping — checkpoint 5
 
-| Nguồn / yêu cầu | Control đã làm | Evidence file:dòng | Giới hạn |
+**Phạm vi:** bài lab chạy `--mock`, dữ liệu synthetic (`data/`, `corpus/`), principal mô phỏng (`--as`) và sink localhost `127.0.0.1:10024`. Bảng dưới nói **control kỹ thuật nào hỗ trợ điều khoản nào**, kèm bằng chứng chạy được trong repo. Mô phỏng kỹ thuật không tự chứng minh tuân thủ pháp luật.
+
+## Nguồn đã đối chiếu (12/10/2026)
+
+Các số điều/khoản dưới đây đã được đọc trực tiếp trên **bản PDF Công báo** tải từ congbao.chinhphu.vn (Cổng Công báo Chính phủ). Mỗi trang PDF có dòng "CÔNG BÁO/Số …". Văn bản được trích text bằng `pypdf` để đọc. Ký hiệu **[CB]** = đã đối chiếu với bản Công báo này.
+
+| Văn bản | Thông tin trên bản gốc | Nguồn chính thức | SHA-256 file PDF đã đọc |
 |---|---|---|---|
-| Luật 91/2025/QH15 | | | |
-| NĐ 356/2025/NĐ-CP | | | |
-| Luật AI 134/2025/QH15 | | | |
-| OWASP ASI01, ASI03, ASI04 | | | |
+| Luật Bảo vệ dữ liệu cá nhân số 91/2025/QH15 | Công báo số 971 + 972 ngày 24/7/2025; 39 điều; hiệu lực 01/01/2026 (Điều 38 khoản 1) | <https://congbao.chinhphu.vn/van-ban/luat-so-91-2025-qh15-45578.htm> | `226dd6da…0dfa2e` |
+| Nghị định 356/2025/NĐ-CP ngày 31/12/2025 quy định chi tiết một số điều và biện pháp thi hành Luật BVDLCN | Công báo số 18 ngày 18/01/2026; 42 điều; hiệu lực 01/01/2026, thay NĐ 13/2023/NĐ-CP (Điều 42) | <https://congbao.chinhphu.vn/van-ban/nghi-dinh-so-356-2025-nd-cp-468371.htm> | `f24747bf…2f1eb` |
+| Luật Trí tuệ nhân tạo số 134/2025/QH15, thông qua 10/12/2025 | Công báo số 40 ngày 22/01/2026; 35 điều; hiệu lực 01/3/2026 (Điều 34) | <https://congbao.chinhphu.vn/van-ban/luat-so-134-2025-qh15-468694.htm> | `181b8687…fdd1b` |
+| OWASP Top 10 for Agentic Applications 2026 | ASI01 "Agent Goal Hijack", ASI03 "Identity & Privilege Abuse", ASI04 "Agentic Supply Chain Vulnerabilities" | <https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/> | (trang web) |
 
-Chỉ ghi điều khoản cụ thể khi đã đối chiếu văn bản gốc. Mô phỏng kỹ thuật không tự chứng minh tuân thủ pháp luật.
+**Vẫn `chưa xác minh`:**
+- (a) Các nghị định hướng dẫn Luật AI (Điều 9 khoản 3, Điều 11 khoản 6) chưa được đọc, nên hệ thống này thuộc mức rủi ro nào theo Điều 9 là `chưa xác minh`.
+- (b) Việc một **số tài khoản ngân hàng đứng riêng** có thuộc "thông tin tài chính" theo NĐ 356 Điều 4 khoản 1 điểm k (nhạy cảm) hay không là diễn giải của mình, `chưa xác minh` với hướng dẫn chính thức.
+- (c) Các điều áp dụng riêng cho **lĩnh vực tài chính, ngân hàng** (Luật 91 Điều 27; NĐ 356 Điều 8) chỉ áp dụng nếu bên triển khai thuộc lĩnh vực đó. Lab giả định bối cảnh customer-support có dữ liệu STK, và giả định này chưa được xác nhận.
+- (d) Bản tiếng Anh của OWASP mới được đối chiếu tên mục, chưa đọc toàn bộ mitigation guidance.
+
+## Luật 91/2025/QH15 — Bảo vệ dữ liệu cá nhân
+
+| Điều khoản [CB] | Nội dung (tóm tắt từ bản gốc) | Control đã làm | Evidence file:dòng | Giới hạn |
+|---|---|---|---|---|
+| Điều 3 khoản 2 | Chỉ thu thập, xử lý đúng phạm vi, mục đích cụ thể, rõ ràng | Mỗi tool call mang `request_purpose`; purpose phải nằm trong `purposes` của principal | `agent/policy.py:114-116`; `data/principals.json`; `agent/runner.py:81-82` (purpose Run A/B) | Purpose do runner gán cứng, không phải người dùng khai báo và được duyệt |
+| Điều 3 khoản 4 | Thực hiện đồng bộ biện pháp thể chế, kỹ thuật, con người | Các biện pháp kỹ thuật: PEP deny-by-default, trifecta split, PII gate, audit ledger | `agent/policy.py:81-120`, `agent/runner.py:139-237`, `agent/pii.py`, `agent/ledger.py` | Chỉ có biện pháp kỹ thuật. Không có quy chế, đào tạo, nhân sự |
+| Điều 7 khoản 7 | Nghiêm cấm chiếm đoạt, cố ý làm lộ, làm mất dữ liệu cá nhân | Rule tối thiểu: `restricted` + egress luôn deny, kể cả principal đủ quyền | `agent/policy.py:86-89`; `reports/ledger.jsonl:24`, `reports/ledger.jsonl:48`; `reports/attack-before.log` (lộ) so với `reports/attack-after.log` (0 byte); `tests/test_policy.py:23` | Chỉ chặn kênh `http_post` của lab. Kênh khác (log, câu trả lời cho người dùng) chỉ được giảm thiểu bằng redact |
+| Điều 14 khoản 1 điểm a, khoản 3 | Xoá, hủy khi chủ thể yêu cầu; bên kiểm soát yêu cầu bên xử lý/bên thứ ba cùng xoá; xoá bằng biện pháp an toàn | **Bonus** delete cascade: PEP `delete_customer` (chỉ `dpo`), xoá record, xoá ticket thuộc khách, scrub nơi khác nhắc tới khách; ledger giữ nguyên và vẫn verify | `agent/erasure.py:56-60` (PEP), `agent/erasure.py:74`, `agent/erasure.py:84`, `agent/erasure.py:90`; `tests/test_bonus_erasure.py`; `reports/bonus/erasure.log` | Xoá file thường, không wipe an toàn. Không xử lý backup và **lịch sử Git**: ticket vẫn còn trong các commit cũ. Chưa có quy trình xác minh danh tính người yêu cầu |
+| Điều 21 khoản 1, 7 | Lập, lưu hồ sơ đánh giá tác động; gửi cơ quan chuyên trách trong 60 ngày; Chính phủ quy định thành phần hồ sơ | DPIA-lite | `reports/dpia-lite.md` | Không phải hồ sơ theo **Mẫu số 10** (NĐ 356 Điều 19). Không nộp cho cơ quan nào |
+| Điều 23 khoản 1, 2 | Phát hiện vi phạm phải thông báo cơ quan chuyên trách chậm nhất 72 giờ; lập biên bản | Ledger cung cấp dữ liệu dựng lại sự cố (ai, tool gì, lúc nào, quyết định gì); incident note cho secret giả | `reports/ledger.jsonl`; `reports/secrets-incident.md` | Không có quy trình hay đồng hồ 72 giờ. Lab không có vi phạm thật để thông báo |
+| Điều 27 khoản 1 điểm a, d | Tổ chức tài chính, ngân hàng: thực hiện đủ quy định về dữ liệu nhạy cảm; thông báo chủ thể khi lộ, mất thông tin tài khoản ngân hàng | STK được phân loại `restricted`, chỉ `dpo` đọc được, không bao giờ được egress; PII gate redact STK | `agent/runner.py:208-211`; `agent/pii.py:40-43`; `reports/ledger.jsonl:27-47` | Áp dụng hay không tuỳ lĩnh vực (`chưa xác minh`, mục c). Không có cơ chế thông báo chủ thể |
+| Điều 30 khoản 1, 3, 4 | Dữ liệu cá nhân trong AI phải đúng mục đích, trong phạm vi cần thiết; hệ thống AI phải có xác thực, định danh phù hợp và **phân quyền truy cập**; xử lý bằng AI phải phân loại theo mức rủi ro | OBO: quyền = `allowed_tools ∩ agent_scopes ∩ parent_scopes`, TTL. Run A không bao giờ chạm private store. Classification `internal`/`restricted` theo từng tool | `agent/policy.py:74-78`, `agent/policy.py:108-112`; `agent/runner.py:93-98`, `agent/runner.py:186-187`; `tests/test_obo.py`, `tests/test_split.py` | **Khoản 3 phần "xác thực, định danh" KHÔNG đạt**: `--as` chỉ chọn principal mô phỏng, không xác thực ai. Phân loại rủi ro ở khoản 4 mới là phân loại dữ liệu, chưa phải phân loại rủi ro của hệ thống AI |
+
+## Nghị định 356/2025/NĐ-CP
+
+| Điều khoản [CB] | Nội dung (tóm tắt từ bản gốc) | Control đã làm | Evidence file:dòng | Giới hạn |
+|---|---|---|---|---|
+| Điều 3 khoản 1, 7; Điều 4 khoản 1 điểm k | Họ tên, **số điện thoại, số định danh cá nhân** là dữ liệu cá nhân **cơ bản**. Thông tin thẻ, lịch sử giao dịch, thông tin tài chính tại tổ chức tín dụng là **nhạy cảm** | Lab phân loại cả record khách hàng (CCCD, SĐT, STK, email) là `restricted`, **chặt hơn** mức tối thiểu cho CCCD/SĐT | `agent/runner.py:210` (`classification="restricted"`); `reports/dpia-lite.md` mục 1 | Phân loại STK là nhạy cảm là diễn giải (`chưa xác minh`, mục b). Điểm i: *hình ảnh* thẻ căn cước là nhạy cảm, *số* định danh thì không |
+| Điều 4 khoản 2 | Xử lý dữ liệu nhạy cảm phải có quy định **phân quyền giới hạn truy cập**, quy trình xử lý, biện pháp bảo mật | OBO deny-by-default kiểm **trước** `read_customer`; `support_l1` không đọc được record | `agent/runner.py:156-160`; `agent/policy.py:108-112`; `tests/test_obo.py:51`; `reports/ledger.jsonl:27-47` | Quyền nằm trong file JSON mô phỏng, không có IAM/phê duyệt thay đổi quyền |
+| Điều 5 khoản 4 | Yêu cầu xoá: phản hồi trong 02 ngày làm việc, thực hiện trong 20 ngày (30 ngày nếu cần bên xử lý/bên thứ ba) | **Bonus** erasure thực hiện ngay, có dòng tombstone trong ledger để chứng minh đã xử lý | `agent/erasure.py:95-98`; `reports/bonus/erasure.log` | Không mô hình hoá tiếp nhận yêu cầu, thời hạn, gia hạn |
+| Điều 8 khoản 1 | Tổ chức tài chính, ngân hàng: đánh giá tuân thủ 01 năm/lần; **ghi lại nhật ký toàn bộ hoạt động xử lý dữ liệu cá nhân** | Ledger JSONL ghi **mọi** tool call (allow/deny/flag), có `reason`, `on_behalf_of`, `run_id`, `expires_at`, hash chain | `agent/runner.py:118-136`, `agent/runner.py:158`; `agent/ledger.py:62-92`; `reports/ledger.jsonl` (48 dòng, verify True); `tests/test_ledger.py:30` | Nhật ký chỉ tamper-evident trong một file: không phát hiện cắt đuôi hay viết lại cả chuỗi; không lưu trữ ngoài. Áp dụng tuỳ lĩnh vực (mục c) |
+| Điều 10 khoản 5 điểm a, b | Hệ thống AI: bảo mật thông tin, độ tin cậy, **khả năng phòng chống tấn công mạng**; cơ chế giám sát và trách nhiệm giải trình | Containment prompt injection (4 lure, 8/8 bị chặn); dòng `flag` cho injection để giám sát; ledger để giải trình | `injection-corpus.md`; `tests/test_injection.py`; `agent/runner.py:177-183`; `reports/ledger.jsonl:2`, `reports/ledger.jsonl:26` | Mock heuristic, không phải model thật. Chưa có giám sát hay cảnh báo thời gian thực |
+| Điều 10 khoản 3 | Thông báo cho chủ thể về xử lý tự động, giải thích nguyên tắc thuật toán, cho phép không tham gia | Chưa làm | — | Ngoài phạm vi lab |
+| Điều 19 khoản 3 | Báo cáo DPIA (Mẫu số 10) gồm mục đích, loại dữ liệu, sơ đồ luồng dữ liệu (điểm c); phương án an toàn (điểm đ); đánh giá rủi ro, biện pháp giảm thiểu (điểm g) | DPIA-lite có loại dữ liệu, mục đích, sơ đồ luồng, bằng chứng và rủi ro còn lại | `reports/dpia-lite.md` mục 1–4 | Thiếu điểm a, b (thông tin liên lạc), d (đồng ý, chính sách lưu trữ), e. Không theo Mẫu số 10 |
+| Điều 28 khoản 1 | Thông báo vi phạm phải mô tả tính chất, hậu quả, biện pháp | Incident note cho token giả có mô tả, phạm vi (commit), biện pháp (rotate, dọn lịch sử, hook) | `reports/secrets-incident.md` | Token giả không phải dữ liệu cá nhân. Không gửi theo Mẫu số 08 |
+
+## Luật 134/2025/QH15 — Trí tuệ nhân tạo
+
+| Điều khoản [CB] | Nội dung (tóm tắt từ bản gốc) | Control đã làm | Evidence file:dòng | Giới hạn |
+|---|---|---|---|---|
+| Điều 4 khoản 2 | AI không thay thế thẩm quyền của con người; duy trì **kiểm soát và khả năng can thiệp** của con người; an ninh dữ liệu; khả năng kiểm tra, giám sát vận hành | Agent hành động thay người dùng (OBO), không có quyền riêng vượt người dùng; TTL 5 phút; ledger để kiểm tra; injection bị `flag` cho người xem lại | `agent/runner.py:76`, `agent/runner.py:106-107`; `agent/policy.py:100-104`; `reports/ledger.jsonl` | Không có bước con người phê duyệt trước hành động rủi ro cao (human-in-the-loop) |
+| Điều 7 khoản 1 | Nghiêm cấm lợi dụng, **chiếm đoạt hệ thống AI** để vi phạm pháp luật, xâm phạm quyền của tổ chức, cá nhân | Prompt injection là hình thức chiếm đoạt hành vi agent. Split + PEP làm chỉ thị chiếm đoạt không dẫn tới hành động | `agent/runner.py:186-201`; `tests/test_split.py:75`; `tests/test_injection.py` | Điều này cấm hành vi của kẻ tấn công. Control chỉ giảm khả năng bị lợi dụng |
+| Điều 7 khoản 3 | Nghiêm cấm thu thập, xử lý dữ liệu để vận hành AI trái pháp luật về BVDLCN, an ninh mạng | Liên kết với các control BVDLCN ở trên (purpose, phân quyền, PII gate) | xem bảng Luật 91 | Như bảng Luật 91 |
+| Điều 9 khoản 1, 3 | Phân loại hệ thống AI: rủi ro cao / trung bình / thấp; Chính phủ quy định chi tiết | Chưa phân loại | — | Mức rủi ro của hệ thống: **`chưa xác minh`** (mục a) |
+| Điều 11 khoản 1 | Hệ thống AI tương tác trực tiếp với con người phải được thiết kế để người dùng nhận biết | Chưa làm (CLI không gắn nhãn AI) | — | Ngoài phạm vi lab |
+| Điều 12 khoản 1, khoản 2 điểm b | Bảo đảm an toàn, kịp thời phát hiện, khắc phục sự cố; bên triển khai **ghi nhận, thông báo** sự cố | Ledger ghi nhận mọi quyết định; dòng `flag` khi phát hiện injection; incident note | `agent/runner.py:177-183`; `reports/secrets-incident.md` | Không có kênh báo cáo sự cố (Cổng một cửa ở Điều 12 khoản 4) |
+| Điều 28 khoản 3 | Khi thanh tra, kiểm tra phải cung cấp hồ sơ kỹ thuật, **nhật ký lưu vết** | Ledger hash chain có thể xuất trình; `verify()` phát hiện sửa dòng | `agent/ledger.py:72-92`; `reports/ledger.jsonl` | Nhật ký chỉ tamper-evident, không phải bằng chứng pháp lý có ký số/mốc thời gian tin cậy |
+| Điều 14 khoản 1 điểm c | (Chỉ cho hệ thống **rủi ro cao**) lập, lưu hồ sơ kỹ thuật và nhật ký hoạt động | Ledger đáp ứng phần "nhật ký hoạt động" ở mức lab | `reports/ledger.jsonl` | Chỉ áp dụng nếu hệ thống là rủi ro cao (`chưa xác minh`, mục a) |
+
+## OWASP Top 10 for Agentic Applications 2026
+
+| Mục (tên đã đối chiếu genai.owasp.org) | Control đã làm | Evidence file:dòng | Giới hạn |
+|---|---|---|---|
+| **ASI01 — Agent Goal Hijack** | Trifecta split: chỉ `list[int]` ticket id từ **tên file** đi qua boundary (`RunAOutput`); Run B suy customer từ `related_tickets`; customer_id/URL trong free text bị bỏ; URL egress là hằng số; PEP deny `restricted` + egress | `agent/runner.py:93-98`, `agent/runner.py:186-187`, `agent/runner.py:193-201`, `agent/runner.py:84`, `agent/policy.py:86`; `tests/test_split.py:75`; `tests/test_injection.py` 8/8; `reports/attack-before.log` so với `reports/attack-after.log`; `injection-corpus.md` | `KH-000999` gắn với ticket 901–905 nên dưới `dpo` vẫn được *đọc* hợp lệ, chỉ PEP egress ngăn rò rỉ |
+| **ASI03 — Identity & Privilege Abuse** | OBO: unknown principal, thiếu/hết hạn `expires_at`, purpose sai, tool ngoài scope đều deny có reason; delegation không vượt `parent_scopes`; kiểm **trước** tool. **Bonus**: cùng policy port sang OPA, khớp 30.720/30.720 context | `agent/policy.py:96-116`, `agent/runner.py:156-160`; `tests/test_obo.py`; `opa/lab24_authz.rego`; `reports/bonus/opa.log` | `--as` là principal **mô phỏng**, không có authentication/token ký số |
+| **ASI04 — Agentic Supply Chain Vulnerabilities** | Lock có hash + `--require-hashes`; hook `gitleaks-system` pin `v8.30.1`; checksum binary Gitleaks/OPA; quét lịch sử. **Bonus**: MCP rug pull, pin sha256 định nghĩa tool lúc duyệt, deny khi lệch | `requirements.lock`; `.pre-commit-config.yaml:4-10`; `reports/secrets-incident.md`; `agent/mcp_guard.py:113-143`; `tests/test_bonus_mcp_rugpull.py`; `reports/bonus/mcp_rugpull.log` | Lock compile trên Windows/Py3.14. Pin MCP chỉ phát hiện thay đổi *định nghĩa*, không phát hiện server đổi *hành vi* mà giữ nguyên định nghĩa. Không có SBOM/attestation |

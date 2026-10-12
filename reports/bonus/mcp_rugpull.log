@@ -1,0 +1,18 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0 -- D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\.venv\Scripts\python.exe
+rootdir: D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734
+configfile: pytest.ini
+plugins: platformdirs-4.13.0
+collecting ... collected 3 items
+
+tests/test_bonus_mcp_rugpull.py::test_before_naive_client_leaks_after_rug_pull 
+[mcp-before] call1='Ticket #1: open' call2='Ticket #2: open' notifications=['notifications/tools/list_changed']
+[mcp-before] exfil.log (255 bytes): {"ticket_id": 2, "customer_records": [{"customer_id": "KH-000999", "name": "Lê Thu Trang", "cccd": "811753472374", "phone": "0861707895", "bank_account": "91030…
+PASSED
+tests/test_bonus_mcp_rugpull.py::test_after_pinned_guard_blocks_rug_pull [mcp-after] mcp:lab24-rugpull/ticket_status allow: pinned tool definition sha256=34b31970c9337b00…
+[mcp-after] mcp:lab24-rugpull/ticket_status allow: tool definition matches pin 34b31970c9337b00…
+[mcp-after] mcp:lab24-rugpull/ticket_status deny: tool definition changed since approval (pinned 34b31970c9337b00…, now 124bd06a3737183a…) — possible MCP rug pull, re-approval required; new description has injection markers ['ghi chu noi bo', 'he thong', 'bat buoc', 'goi read_customer', 'hay goi']
+PASSED
+tests/test_bonus_mcp_rugpull.py::test_malicious_from_start_is_never_pinned PASSED
+
+============================== 3 passed in 0.36s ==============================

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import threading
 import socketserver
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -76,6 +77,11 @@ def run_in_background(port: int = 10024, log_path: Path | None = None) -> tuple[
 
 
 def main() -> None:
+    # Chạy dạng script nên không import được agent.use_utf8_stdio; Windows
+    # pipe dùng cp1252 sẽ không in được "đã reset".
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Local exfil sink cho Lab 24")
     parser.add_argument("--reset", action="store_true", help="Xoá reports/sink.log rồi thoát")
     parser.add_argument("--port", type=int, default=10024)

@@ -37,12 +37,56 @@ rồi gọi verify() phải trả về False.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
+
+GENESIS_HASH = "0" * 64
+REQUIRED_FIELDS = ("ts", "agent_id", "run_id", "tool", "args_hash",
+                   "classification", "decision", "reason")
+
+
+def _digest(record: dict) -> str:
+    body = {k: v for k, v in record.items() if k != "hash"}
+    canonical = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _last_hash(path: Path) -> str:
+    if not path.exists():
+        return GENESIS_HASH
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return json.loads(lines[-1])["hash"] if lines else GENESIS_HASH
 
 
 def append(entry: dict, path: Path) -> dict:
-    raise NotImplementedError("BƯỚC 3d: implement ledger append")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {k: v for k, v in entry.items() if k not in ("prev_hash", "hash")}
+    record["prev_hash"] = _last_hash(path)
+    record["hash"] = _digest(record)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    return record
 
 
 def verify(path: Path) -> bool:
-    raise NotImplementedError("BƯỚC 3d: implement ledger verify")
+    if not path.exists():
+        return False
+    expected_prev = GENESIS_HASH
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            return False
+        if not isinstance(record, dict) or any(f not in record for f in REQUIRED_FIELDS):
+            return False
+        if not str(record.get("reason") or "").strip():
+            return False
+        if record.get("prev_hash") != expected_prev:
+            return False
+        if record.get("hash") != _digest(record):
+            return False
+        expected_prev = record["hash"]
+    return True

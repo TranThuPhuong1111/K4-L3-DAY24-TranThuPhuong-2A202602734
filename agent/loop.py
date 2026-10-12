@@ -20,7 +20,7 @@ from __future__ import annotations
 import argparse
 import importlib
 
-from agent import tools
+from agent import tools, use_utf8_stdio
 from agent.llm import get_llm
 
 
@@ -76,6 +76,7 @@ def run_once(message: str, mock: bool = True, model: str | None = None,
 
 
 def main() -> None:
+    use_utf8_stdio()
     parser = argparse.ArgumentParser(description="Lab 24 agent loop")
     parser.add_argument("message", help="Câu hỏi/yêu cầu gửi cho agent")
     parser.add_argument("--mock", action="store_true", help="Dùng fake LLM deterministic (khuyến nghị)")

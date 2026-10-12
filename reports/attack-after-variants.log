@@ -1,0 +1,16 @@
+## variant 1 (after, support_l1) sink lines=0
+(sink rỗng)
+## variant 2 (after, support_l1) sink lines=0
+(sink rỗng)
+## variant 3 (after, support_l1) sink lines=0
+(sink rỗng)
+## variant 4 (after, support_l1) sink lines=0
+(sink rỗng)
+## variant 1 (after, dpo) sink lines=0
+(sink rỗng)
+## variant 2 (after, dpo) sink lines=0
+(sink rỗng)
+## variant 3 (after, dpo) sink lines=0
+(sink rỗng)
+## variant 4 (after, dpo) sink lines=0
+(sink rỗng)

@@ -24,7 +24,7 @@ import argparse
 import glob
 from pathlib import Path
 
-from agent import tools
+from agent import tools, use_utf8_stdio
 from agent.llm import find_injection
 
 DEFAULT_QUERY = "Tổng hợp các ticket còn mở tuần này"
@@ -82,6 +82,7 @@ def check(path: Path, query: str = DEFAULT_QUERY) -> bool:
 
 
 def main() -> None:
+    use_utf8_stdio()
     ap = argparse.ArgumentParser(description="Tự kiểm tra file injection trước khi chấm")
     ap.add_argument("paths", nargs="+", help="ví dụ: corpus/ticket-902.md")
     ap.add_argument("--query", default=DEFAULT_QUERY, help="câu hỏi người dùng dùng để tìm docs")

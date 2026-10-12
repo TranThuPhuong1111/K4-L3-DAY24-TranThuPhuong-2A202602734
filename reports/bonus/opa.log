@@ -1,0 +1,29 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0 -- D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\.venv\Scripts\python.exe
+rootdir: D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734
+configfile: pytest.ini
+plugins: platformdirs-4.13.0
+collecting ... collected 3 items
+
+tests/test_bonus_opa.py::test_rego_unit_tests_pass D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\opa\lab24_authz_test.rego:34:
+data.lab24.authz_test.test_restricted_egress_beats_full_authorization: PASS (2.6693ms)
+D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\opa\lab24_authz_test.rego:23:
+data.lab24.authz_test.test_dpo_can_read_for_valid_purpose: PASS (2.6693ms)
+D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\opa\lab24_authz_test.rego:27:
+data.lab24.authz_test.test_support_l1_cannot_read_restricted: PASS (3.9118ms)
+D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\opa\lab24_authz_test.rego:41:
+data.lab24.authz_test.test_delegation_cannot_expand_parent_scope: PASS (3.3715ms)
+D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\opa\lab24_authz_test.rego:47:
+data.lab24.authz_test.test_expired_unknown_and_garbage_expiry_are_denied: PASS (3.9118ms)
+--------------------------------------------------------------------------------
+PASS: 5/5
+
+PASSED
+tests/test_bonus_opa.py::test_opa_matches_python_policy_on_every_context 
+[opa] contexts=30720 allow=210 deny=30510 mismatches=0
+PASSED
+tests/test_bonus_opa.py::test_runner_with_opa_as_pep_still_blocks_exfil [opa-pep] support_l1: read_customer=deny x21, http_post=deny x1, sink bytes=0
+[opa-pep] dpo: read_customer=allow x21, http_post=deny x1, sink bytes=0
+PASSED
+
+============================== 3 passed in 5.00s ==============================

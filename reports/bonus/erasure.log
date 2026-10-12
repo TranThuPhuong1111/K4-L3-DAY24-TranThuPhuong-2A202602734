@@ -1,0 +1,19 @@
+============================= test session starts =============================
+platform win32 -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0 -- D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734\.venv\Scripts\python.exe
+rootdir: D:\vin\K4-L3-DAY24-TranThuPhuong-2A202602734
+configfile: pytest.ini
+plugins: platformdirs-4.13.0
+collecting ... collected 4 items
+
+tests/test_bonus_erasure.py::test_cascade_erases_store_and_corpus_but_ledger_still_verifies[KH-000999] 
+[erasure] KH-000999: {'erased': True, 'deleted_tickets': ['ticket-901.md', 'ticket-902.md', 'ticket-903.md', 'ticket-904.md', 'ticket-904b.md'], 'scrubbed_files': ['ticket-050.md'], 'ledger_verified': True}
+PASSED
+tests/test_bonus_erasure.py::test_cascade_erases_store_and_corpus_but_ledger_still_verifies[KH-000006] 
+[erasure] KH-000006: {'erased': True, 'deleted_tickets': ['ticket-001.md', 'ticket-005.md', 'ticket-016.md', 'ticket-022.md'], 'scrubbed_files': ['ticket-050.md'], 'ledger_verified': True}
+PASSED
+tests/test_bonus_erasure.py::test_after_erasure_runner_can_no_longer_read_the_customer 
+[erasure] runner sau khi xoá đọc 20 khách, không còn KH-000999
+PASSED
+tests/test_bonus_erasure.py::test_naive_erasure_by_deleting_ledger_lines_breaks_the_chain PASSED
+
+============================== 4 passed in 0.53s ==============================

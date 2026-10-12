@@ -30,10 +30,42 @@ set ở tests/vn_pii_testset.jsonl):
 """
 from __future__ import annotations
 
+import re
+
+# Thứ tự ưu tiên khi các match chồng nhau: pattern đứng trước thắng.
+# STK có ngữ cảnh đứng đầu vì một STK 12 chữ số trông y hệt CCCD — chỉ từ
+# khoá "STK"/"số tài khoản" ngay trước mới phân biệt được hai loại.
+_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("EMAIL", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")),
+    ("VN_BANK_ACCOUNT", re.compile(
+        r"(?i)(?:\bSTK|s[oố]\s+t[aà]i\s+kho[aả]n|\bt[aà]i\s+kho[aả]n|\baccount)"
+        r"[\s:.#-]{0,5}(?:l[aà]\s+)?(?P<value>(?<!\d)\d{8,16}(?!\d))"
+    )),
+    ("VN_CCCD", re.compile(r"(?<!\d)\d{12}(?!\d)")),
+    # 0xxxxxxxxx (10 số) hoặc +84xxxxxxxxx, cho phép dấu cách/chấm/gạch giữa nhóm.
+    ("VN_PHONE", re.compile(r"(?<![\d+])(?:\+84|0)(?:[\s.-]?\d){9}(?!\d)")),
+    # Lưới an toàn: chuỗi 8–16 chữ số còn sót lại coi như STK, để redact
+    # theo hướng fail-closed (thà che nhầm một mã số còn hơn lộ STK).
+    ("VN_BANK_ACCOUNT", re.compile(r"(?<!\d)\d{8,16}(?!\d)")),
+]
+
 
 def detect(text: str) -> list[dict]:
-    raise NotImplementedError("BƯỚC 3a: implement PII detection")
+    entities: list[dict] = []
+    taken: list[tuple[int, int]] = []
+    for entity_type, pattern in _PATTERNS:
+        for match in pattern.finditer(text):
+            group = "value" if "value" in pattern.groupindex else 0
+            start, end = match.span(group)
+            if any(start < t_end and t_start < end for t_start, t_end in taken):
+                continue
+            taken.append((start, end))
+            entities.append({"type": entity_type, "start": start, "end": end})
+    return sorted(entities, key=lambda e: e["start"])
 
 
 def redact(text: str) -> str:
-    raise NotImplementedError("BƯỚC 3a: implement PII redaction")
+    # detect() đã loại overlap; thay từ cuối về đầu để offset không lệch.
+    for entity in sorted(detect(text), key=lambda e: e["start"], reverse=True):
+        text = text[: entity["start"]] + f"[REDACTED_{entity['type']}]" + text[entity["end"]:]
+    return text
